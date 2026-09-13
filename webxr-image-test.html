@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AR Cube - Image Tracking</title>
+
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: sans-serif;
+    }
+
+    #arButton {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10;
+
+      padding: 14px 24px;
+      font-size: 18px;
+      border: none;
+      border-radius: 8px;
+      background: white;
+      color: black;
+    }
+  </style>
+</head>
+
+<body>
+
+<button id="arButton">START AR</button>
+
+<script type="module">
+
+import * as THREE from
+"https://unpkg.com/three@0.160.0/build/three.module.js";
+
+import { GLTFLoader } from
+"https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
+
+
+// -----------------------------
+// Scene
+// -----------------------------
+
+const scene = new THREE.Scene();
+
+
+// -----------------------------
+// Camera
+// -----------------------------
+
+const camera = new THREE.PerspectiveCamera(
+  70,
+  window.innerWidth / window.innerHeight,
+  0.01,
+  20
+);
+
+
+// -----------------------------
+// Renderer
+// -----------------------------
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  alpha: true
+});
+
+renderer.setPixelRatio(window.devicePixelRatio);
+
+renderer.setSize(
+  window.innerWidth,
+  window.innerHeight
+);
+
+renderer.xr.enabled = true;
+
+document.body.appendChild(renderer.domElement);
+
+
+// -----------------------------
+// Lights
+// -----------------------------
+
+scene.add(
+  new THREE.HemisphereLight(
+    0xffffff,
+    0xbbbbff,
+    2
+  )
+);
+
+const directionalLight =
+  new THREE.DirectionalLight(
+    0xffffff,
+    2
+  );
+
+directionalLight.position.set(
+  2,
+  4,
+  3
+);
+
+scene.add(directionalLight);
+
+
+// -----------------------------
+// Load GLB
+// -----------------------------
+
+let cube = null;
+
+const loader = new GLTFLoader();
+
+loader.load(
+  "./ar-cube.glb",
+
+  function (gltf) {
+
+    cube = gltf.scene;
+
+    cube.scale.set(
+      0.5,
+      0.5,
+      0.5
+    );
+
+    cube.visible = false;
+
+    scene.add(cube);
+
+    console.log("CUBE LOADED");
+
+  },
+
+  undefined,
+
+  function (error) {
+
+    console.error(
+      "ERROR LOADING CUBE:",
+      error
+    );
+
+  }
+);
+
+
+// -----------------------------
+// Load Image Target
+// -----------------------------
+
+const targetImage = new Image();
+
+targetImage.src = "./target.jpeg";
+
+
+// -----------------------------
+// AR Button
+// -----------------------------
+
+const button =
+  document.getElementById("arButton");
+
+
+button.addEventListener(
+  "click",
+  async () => {
+
+    if (!navigator.xr) {
+
+      alert(
+        "WebXR is not available"
+      );
+
+      return;
+
+    }
+
+
+    const supported =
+      await navigator.xr.isSessionSupported(
+        "immersive-ar"
+      );
+
+
+    if (!supported) {
+
+      alert(
+        "Immersive AR is not supported"
+      );
+
+      return;
+
+    }
+
+
+    await targetImage.decode();
+
+
+    const imageBitmap =
+      await createImageBitmap(
+        targetImage
+      );
+
+
+    try {
+
+      const session =
+        await navigator.xr.requestSession(
+          "immersive-ar",
+          {
+            requiredFeatures: [
+              "image-tracking"
+            ],
+
+            trackedImages: [
+              {
+                image: imageBitmap,
+
+                // Target width = 20 cm
+                widthInMeters: 0.20
+              }
+            ]
+          }
+        );
+
+
+      renderer.xr.setReferenceSpaceType(
+        "local"
+      );
+
+      await renderer.xr.setSession(
+        session
+      );
+
+
+      // -----------------------------
+      // AR Loop
+      // -----------------------------
+
+      renderer.setAnimationLoop(
+        (time, frame) => {
+
+          if (frame && cube) {
+
+            const referenceSpace =
+              renderer.xr.getReferenceSpace();
+
+
+            const results =
+              frame.getImageTrackingResults();
+
+
+            for (
+              const result of results
+            ) {
+
+              if (
+                result.index === 0
+              ) {
+
+                const pose =
+                  frame.getPose(
+                    result.imageSpace,
+                    referenceSpace
+                  );
+
+
+                if (pose) {
+
+                  cube.position.set(
+                    pose.transform.position.x,
+                    pose.transform.position.y,
+                    pose.transform.position.z
+                  );
+
+
+                  cube.quaternion.copy(
+                    pose.transform.orientation
+                  );
+
+
+                  cube.visible = true;
+
+                }
+
+              }
+
+            }
+
+          }
+
+
+          renderer.render(
+            scene,
+            camera
+          );
+
+        }
+      );
+
+
+      session.addEventListener(
+        "end",
+        () => {
+
+          renderer.setAnimationLoop(null);
+
+          if (cube) {
+            cube.visible = false;
+          }
+
+        }
+      );
+
+    } catch (error) {
+
+      console.error(error);
+
+      alert(
+        "Image Tracking is not supported on this browser."
+      );
+
+    }
+
+  }
+);
+
+
+// -----------------------------
+// Resize
+// -----------------------------
+
+window.addEventListener(
+  "resize",
+  () => {
+
+    camera.aspect =
+      window.innerWidth /
+      window.innerHeight;
+
+    camera.updateProjectionMatrix();
+
+    renderer.setSize(
+      window.innerWidth,
+      window.innerHeight
+    );
+
+  }
+);
+
+</script>
+
+</body>
+</html>
