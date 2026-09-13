@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AR Cube - Image Tracking</title>
+
+  <title>AR Cube Image Tracking</title>
 
   <style>
     body {
@@ -21,10 +22,32 @@
 
       padding: 14px 24px;
       font-size: 18px;
+
       border: none;
       border-radius: 8px;
+
       background: white;
       color: black;
+    }
+
+    #status {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+
+      z-index: 10;
+
+      padding: 10px 15px;
+
+      background: rgba(0,0,0,0.7);
+      color: white;
+
+      border-radius: 6px;
+
+      font-size: 14px;
+
+      display: none;
     }
   </style>
 </head>
@@ -32,6 +55,8 @@
 <body>
 
 <button id="arButton">START AR</button>
+
+<div id="status"></div>
 
 <script type="module">
 
@@ -42,35 +67,37 @@ import { GLTFLoader } from
 "https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
 
 
-// -----------------------------
+// ==================================================
 // Scene
-// -----------------------------
+// ==================================================
 
 const scene = new THREE.Scene();
 
 
-// -----------------------------
+// ==================================================
 // Camera
-// -----------------------------
+// ==================================================
 
 const camera = new THREE.PerspectiveCamera(
   70,
   window.innerWidth / window.innerHeight,
   0.01,
-  20
+  100
 );
 
 
-// -----------------------------
+// ==================================================
 // Renderer
-// -----------------------------
+// ==================================================
 
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
   alpha: true
 });
 
-renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setPixelRatio(
+  window.devicePixelRatio
+);
 
 renderer.setSize(
   window.innerWidth,
@@ -79,20 +106,26 @@ renderer.setSize(
 
 renderer.xr.enabled = true;
 
-document.body.appendChild(renderer.domElement);
+document.body.appendChild(
+  renderer.domElement
+);
 
 
-// -----------------------------
+// ==================================================
 // Lights
-// -----------------------------
+// ==================================================
 
-scene.add(
+const hemisphereLight =
   new THREE.HemisphereLight(
     0xffffff,
     0xbbbbff,
     2
-  )
+  );
+
+scene.add(
+  hemisphereLight
 );
+
 
 const directionalLight =
   new THREE.DirectionalLight(
@@ -106,23 +139,29 @@ directionalLight.position.set(
   3
 );
 
-scene.add(directionalLight);
+scene.add(
+  directionalLight
+);
 
 
-// -----------------------------
-// Load GLB
-// -----------------------------
+// ==================================================
+// Load Cube
+// ==================================================
 
 let cube = null;
 
-const loader = new GLTFLoader();
+const loader =
+  new GLTFLoader();
+
 
 loader.load(
+
   "./ar-cube.glb",
 
-  function (gltf) {
+  function(gltf) {
 
-    cube = gltf.scene;
+    cube =
+      gltf.scene;
 
     cube.scale.set(
       0.5,
@@ -130,167 +169,252 @@ loader.load(
       0.5
     );
 
-    cube.visible = false;
+    cube.visible =
+      false;
 
-    scene.add(cube);
+    scene.add(
+      cube
+    );
 
-    console.log("CUBE LOADED");
+    console.log(
+      "AR CUBE LOADED"
+    );
 
   },
 
   undefined,
 
-  function (error) {
+  function(error) {
 
     console.error(
-      "ERROR LOADING CUBE:",
+      "GLB ERROR:",
       error
     );
 
   }
+
 );
 
 
-// -----------------------------
-// Load Image Target
-// -----------------------------
+// ==================================================
+// Target Image
+// ==================================================
 
-const targetImage = new Image();
+const targetImage =
+  new Image();
 
-targetImage.src = "./target.jpeg";
+targetImage.src =
+  "./target.jpeg";
 
 
-// -----------------------------
-// AR Button
-// -----------------------------
+// ==================================================
+// UI
+// ==================================================
 
 const button =
-  document.getElementById("arButton");
+  document.getElementById(
+    "arButton"
+  );
 
+const status =
+  document.getElementById(
+    "status"
+  );
+
+
+function showStatus(text) {
+
+  status.innerText =
+    text;
+
+  status.style.display =
+    "block";
+
+}
+
+
+// ==================================================
+// START AR
+// ==================================================
 
 button.addEventListener(
   "click",
-  async () => {
-
-    if (!navigator.xr) {
-
-      alert(
-        "WebXR is not available"
-      );
-
-      return;
-
-    }
-
-
-    const supported =
-      await navigator.xr.isSessionSupported(
-        "immersive-ar"
-      );
-
-
-    if (!supported) {
-
-      alert(
-        "Immersive AR is not supported"
-      );
-
-      return;
-
-    }
-
-
-    await targetImage.decode();
-
-
-    const imageBitmap =
-      await createImageBitmap(
-        targetImage
-      );
-
+  async function() {
 
     try {
+
+      // ----------------------------------------------
+      // Check WebXR
+      // ----------------------------------------------
+
+      if (!navigator.xr) {
+
+        showStatus(
+          "WebXR is not available"
+        );
+
+        return;
+
+      }
+
+
+      // ----------------------------------------------
+      // Check AR
+      // ----------------------------------------------
+
+      const arSupported =
+        await navigator.xr.isSessionSupported(
+          "immersive-ar"
+        );
+
+
+      if (!arSupported) {
+
+        showStatus(
+          "Immersive AR is not supported"
+        );
+
+        return;
+
+      }
+
+
+      // ----------------------------------------------
+      // Load Target
+      // ----------------------------------------------
+
+      await targetImage.decode();
+
+
+      const imageBitmap =
+        await createImageBitmap(
+          targetImage
+        );
+
+
+      // ----------------------------------------------
+      // Start WebXR
+      // ----------------------------------------------
 
       const session =
         await navigator.xr.requestSession(
           "immersive-ar",
           {
+
             requiredFeatures: [
               "image-tracking"
             ],
 
             trackedImages: [
-              {
-                image: imageBitmap,
 
-                // Target width = 20 cm
-                widthInMeters: 0.20
+              {
+                image:
+                  imageBitmap,
+
+                // REAL target width:
+                // 10 centimeters
+
+                widthInMeters:
+                  0.10
               }
+
             ]
+
           }
         );
 
 
+      // ----------------------------------------------
+      // WebXR Reference Space
+      // ----------------------------------------------
+
       renderer.xr.setReferenceSpaceType(
         "local"
       );
+
 
       await renderer.xr.setSession(
         session
       );
 
 
-      // -----------------------------
-      // AR Loop
-      // -----------------------------
+      showStatus(
+        "Target را جلوی دوربین بگیر"
+      );
+
+
+      // ----------------------------------------------
+      // AR LOOP
+      // ----------------------------------------------
 
       renderer.setAnimationLoop(
-        (time, frame) => {
+        function(time, frame) {
 
-          if (frame && cube) {
+          if (
+            frame &&
+            cube
+          ) {
 
             const referenceSpace =
               renderer.xr.getReferenceSpace();
 
 
-            const results =
+            const trackingResults =
               frame.getImageTrackingResults();
 
 
             for (
-              const result of results
+              const result of trackingResults
             ) {
 
+              // Our target = index 0
+
               if (
-                result.index === 0
+                result.index !== 0
               ) {
 
-                const pose =
-                  frame.getPose(
-                    result.imageSpace,
-                    referenceSpace
-                  );
-
-
-                if (pose) {
-
-                  cube.position.set(
-                    pose.transform.position.x,
-                    pose.transform.position.y,
-                    pose.transform.position.z
-                  );
-
-
-                  cube.quaternion.copy(
-                    pose.transform.orientation
-                  );
-
-
-                  cube.visible = true;
-
-                }
+                continue;
 
               }
+
+
+              const pose =
+                frame.getPose(
+                  result.imageSpace,
+                  referenceSpace
+                );
+
+
+              if (!pose) {
+
+                continue;
+
+              }
+
+
+              // --------------------------------------
+              // Place Cube
+              // --------------------------------------
+
+              cube.position.set(
+                pose.transform.position.x,
+                pose.transform.position.y,
+                pose.transform.position.z
+              );
+
+
+              cube.quaternion.copy(
+                pose.transform.orientation
+              );
+
+
+              cube.visible =
+                true;
+
+
+              showStatus(
+                "Target detected"
+              );
 
             }
 
@@ -306,25 +430,46 @@ button.addEventListener(
       );
 
 
+      // ----------------------------------------------
+      // End AR
+      // ----------------------------------------------
+
       session.addEventListener(
         "end",
-        () => {
+        function() {
 
-          renderer.setAnimationLoop(null);
+          renderer.setAnimationLoop(
+            null
+          );
+
 
           if (cube) {
-            cube.visible = false;
+
+            cube.visible =
+              false;
+
           }
+
+
+          status.style.display =
+            "none";
 
         }
       );
 
-    } catch (error) {
 
-      console.error(error);
+    }
 
-      alert(
-        "Image Tracking is not supported on this browser."
+    catch(error) {
+
+      console.error(
+        "AR ERROR:",
+        error
+      );
+
+
+      showStatus(
+        "Image Tracking روی این مرورگر پشتیبانی نمی‌شود"
       );
 
     }
@@ -333,19 +478,20 @@ button.addEventListener(
 );
 
 
-// -----------------------------
+// ==================================================
 // Resize
-// -----------------------------
+// ==================================================
 
 window.addEventListener(
   "resize",
-  () => {
+  function() {
 
     camera.aspect =
       window.innerWidth /
       window.innerHeight;
 
     camera.updateProjectionMatrix();
+
 
     renderer.setSize(
       window.innerWidth,
